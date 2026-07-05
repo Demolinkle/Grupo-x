@@ -1,0 +1,35 @@
+# Compilador nativo de Microsoft y banderas de optimizacion
+CC = cl
+CFLAGS = /nologo /O2 /Iinclude /W3
+
+# Directorios de trabajo
+SRC_DIR = src
+BIN_DIR = bin
+
+# Regla principal: Asegura que se creen las carpetas y compila los 4 ejecutables
+all: setup $(BIN_DIR)\sensors.exe $(BIN_DIR)\broker.exe $(BIN_DIR)\dispatcher.exe $(BIN_DIR)\monitor.exe
+
+# Crea la carpeta bin si no existe en el sistema
+setup:
+	@if not exist $(BIN_DIR) mkdir $(BIN_DIR)
+
+# Compilacion del Modulo 1: Sensores
+$(BIN_DIR)\sensors.exe: $(SRC_DIR)\modulo1_sensors\sensors.c
+	$(CC) $(CFLAGS) $(SRC_DIR)\modulo1_sensors\sensors.c /Fe:$@
+
+# Compilacion del Modulo 2: Broker Ingestor
+$(BIN_DIR)\broker.exe: $(SRC_DIR)\modulo2_broker\broker.c
+	$(CC) $(CFLAGS) $(SRC_DIR)\modulo2_broker\broker.c /Fe:$@
+
+# Compilacion del Modulo 3: Dispatcher
+$(BIN_DIR)\dispatcher.exe: $(SRC_DIR)\modulo3_dispatcher\dispatcher.c
+	$(CC) $(CFLAGS) $(SRC_DIR)\modulo3_dispatcher\dispatcher.c /Fe:$@
+
+# Compilacion del Modulo 4: Monitor / Dashboard
+$(BIN_DIR)\monitor.exe: $(SRC_DIR)\modulo4_monitor\monitor.c
+	$(CC) $(CFLAGS) $(SRC_DIR)\modulo4_monitor\monitor.c /Fe:$@
+
+# Regla para limpiar los archivos temporales de compilacion (.obj) y ejecutables (.exe)
+clean:
+	@if exist $(BIN_DIR) rmdir /s /q $(BIN_DIR)
+	@del *.obj 2>nul

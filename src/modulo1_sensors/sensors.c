@@ -10,11 +10,12 @@ int main(int argc, char* argv[]) {
     // Semilla para generar datos aleatorios unicos por cada sensor instanciado
     srand((unsigned int)time(NULL) ^ sensor_id);
 
-    printf("[SENSOR %d] Buscando conexion con el Broker Ingestor...\n", sensor_id);
+    // Se cambia %d por %lu y se castea a (unsigned long)
+    printf("[SENSOR %lu] Buscando conexion con el Broker Ingestor...\n", (unsigned long)sensor_id);
 
     // Esperar de forma pasiva a que el pipe este disponible en el sistema operativo
     if (!WaitNamedPipe(PIPE_NAME, NMPWAIT_WAIT_FOREVER)) {
-        printf("[SENSOR %d] Error: El canal del Broker no esta disponible.\n", sensor_id);
+        printf("[SENSOR %lu] Error: El canal del Broker no esta disponible.\n", (unsigned long)sensor_id);
         return 1;
     }
 
@@ -30,11 +31,12 @@ int main(int argc, char* argv[]) {
     );
 
     if (hPipe == INVALID_HANDLE_VALUE) {
-        printf("[SENSOR %d] Error al conectar con el pipe. Codigo: %d\n", sensor_id, GetLastError());
+        printf("[SENSOR %lu] Error al conectar con el pipe. Codigo: %lu\n", 
+               (unsigned long)sensor_id, (unsigned long)GetLastError());
         return 1;
     }
 
-    printf("[SENSOR %d] Conectado exitosamente. Transmitiendo telemetria...\n", sensor_id);
+    printf("[SENSOR %lu] Conectado exitosamente. Transmitiendo telemetria...\n", (unsigned long)sensor_id);
 
     TelemetryEvent event;
     event.sensor_id = sensor_id;
@@ -56,12 +58,12 @@ int main(int argc, char* argv[]) {
         
         // Si el Broker se cierra o se rompe la conexion, salimos del bucle
         if (!success || bytesWritten == 0) {
-            printf("[SENSOR %d] Conexion perdida con el Broker. Saliendo...\n", sensor_id);
+            printf("[SENSOR %lu] Conexion perdida con el Broker. Saliendo...\n", (unsigned long)sensor_id);
             break;
         }
 
-        printf("[SENSOR %d] Evento enviado -> Vel: %.1f km/h | RPM: %.0f\n", 
-               sensor_id, event.velocidad, event.rpm);
+        printf("[SENSOR %lu] Evento enviado -> Vel: %.1f km/h | RPM: %.0f\n", 
+               (unsigned long)sensor_id, event.velocidad, event.rpm);
 
         // Simular tasa de refresco del sensor (envia datos cada 200 milisegundos)
         Sleep(200);

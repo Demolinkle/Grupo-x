@@ -16,7 +16,8 @@ int main() {
     );
     
     if (shared_ctx == NULL) {
-        printf("[MONITOR] Error al mapear la vista de memoria. Codigo: %d\n", GetLastError());
+        // Se corrige %d a %lu con casteo explicito para evitar el warning de formato
+        printf("[MONITOR] Error al mapear la vista de memoria. Codigo: %lu\n", (unsigned long)GetLastError());
         CloseHandle(hMapFile);
         return 1;
     }

@@ -68,14 +68,16 @@ int main() {
         INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(SharedBufferContext), SHM_NAME
     );
     if (hMapFile == NULL) {
-        printf("Error al crear File Mapping. Codigo: %d\n", GetLastError());
+        // Se corrige %d a %lu con casteo explicito
+        printf("Error al crear File Mapping. Codigo: %lu\n", (unsigned long)GetLastError());
         return 1;
     }
 
     // 2. Enlazar la vista de memoria al puntero de la estructura
     shared_ctx = (SharedBufferContext*)MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedBufferContext));
     if (shared_ctx == NULL) {
-        printf("Error al mapear vista de memoria. Codigo: %d\n", GetLastError());
+        // Se corrige %d a %lu con casteo explicito
+        printf("Error al mapear vista de memoria. Codigo: %lu\n", (unsigned long)GetLastError());
         CloseHandle(hMapFile);
         return 1;
     }
@@ -105,7 +107,8 @@ int main() {
         );
 
         if (hPipe == INVALID_HANDLE_VALUE) {
-            printf("Error al crear instancia de Named Pipe. Codigo: %d\n", GetLastError());
+            // Se corrige %d a %lu con casteo explicito
+            printf("Error al crear instancia de Named Pipe. Codigo: %lu\n", (unsigned long)GetLastError());
             continue;
         }
 

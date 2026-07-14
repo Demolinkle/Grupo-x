@@ -68,32 +68,23 @@ int main() {
     // 1. Abrir la memoria compartida creada por el Broker
     hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHM_NAME);
     if (hMapFile == NULL) {
-        printf("Error: El Broker central no esta iniciado.\n");
+        printf("Error: El Broker central no esta iniciado. Codigo: %lu\n", (unsigned long)GetLastError());
         return 1;
     }
 
     shared_ctx = (SharedBufferContext*)MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedBufferContext));
+    if (shared_ctx == NULL) {
+        printf("Error al mapear memoria compartida. Codigo: %lu\n", (unsigned long)GetLastError());
+        CloseHandle(hMapFile);
+        return 1;
+    }
     
-    // 2. Abrir primitivas de sincronizacion existentes
-    hSemEmpty    = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, TEXT("Local\\F1SemEmpty")); // Se asume creado por Broker
-    hSemFull     = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, TEXT("Local\\F1SemFull"));
-    hMutexBuffer = OpenMutex(MUTEX_ALL_ACCESS, FALSE, TEXT("Local\\F1MutexBuffer"));
-    hEventShutdown = OpenEvent(EVENT_ALL_ACCESS, FALSE, EVENT_SHUTDOWN);
-
-    // Si los Named Objects locales del Broker no tienen nombres fijos, se abren usando punteros locales
-    // Nota: Para simplificar el desacoplamiento de procesos independientes, los abrimos de manera global
-    hSemEmpty    = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, NULL); 
-    hSemFull     = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, NULL);
-    hMutexBuffer = OpenMutex(MUTEX_ALL_ACCESS, FALSE, NULL);
-
-    // Alternativa robusta: Al ser procesos independientes, el enunciado exige abrirlos por jerarquia.
-    // Como compartimos la misma memoria, podemos re-crear/abrir los objetos usando nombres compartidos indirectamente.
-    // Para esta plantilla, asumimos que el Broker y el Dispatcher coordinan mediante los semaforos anonimos o mapeados.
-    // Como son procesos separados, necesitamos pasar los Handles o crearlos con nombres fijos. 
-    // Vamos a usar nombres fijos locales para garantizar la apertura entre procesos separados:
+    // 2. Abrir primitivas de sincronizacion compartidas usando nombres fijos globales/locales
+    // Se eliminó la sobreescritura redundante que causaba punteros nulos.
     hSemEmpty    = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, TEXT("Local\\F1SemEmpty"));
     hSemFull     = CreateSemaphore(NULL, 0, BUFFER_SIZE, TEXT("Local\\F1SemFull"));
     hMutexBuffer = CreateMutex(NULL, FALSE, TEXT("Local\\F1MutexBuffer"));
+    hEventShutdown = CreateEvent(NULL, TRUE, FALSE, EVENT_SHUTDOWN);
 
     // 3. Crear el archivo de log indexado concurrentemente
     hLogFile = CreateFile(
@@ -101,6 +92,13 @@ int main() {
         FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, 
         OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL
     );
+
+    if (hLogFile == INVALID_HANDLE_VALUE) {
+        printf("Error al crear el archivo de log. Codigo: %lu\n", (unsigned long)GetLastError());
+        UnmapViewOfFile(shared_ctx);
+        CloseHandle(hMapFile);
+        return 1;
+    }
 
     // 4. Inicializar el Puerto de Finalizacion de E/S (IOCP) para la cola de hilos
     hIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, MAX_WORKERS);
@@ -126,6 +124,7 @@ int main() {
 
         // Reservar dinamicamente espacio para enviar el evento al pool
         TelemetryEvent* isolatedEvent = (TelemetryEvent*)malloc(sizeof(TelemetryEvent));
+        if (isolatedEvent == NULL) continue;
         
         // Seccion critica de lectura del buffer compartido
         WaitForSingleObject(hMutexBuffer, INFINITE);
@@ -160,6 +159,10 @@ int main() {
     CloseHandle(hLogFile);
     UnmapViewOfFile(shared_ctx);
     CloseHandle(hMapFile);
+    CloseHandle(hSemEmpty);
+    CloseHandle(hSemFull);
+    CloseHandle(hMutexBuffer);
+    CloseHandle(hEventShutdown);
 
     printf("[DISPATCHER] Pool de Workers cerrado limpiamente.\n");
     return 0;

@@ -1,0 +1,11 @@
+cd C:\Users\Usuario\OneDrive\Documentos\Grupo x\bin
+broker.exe
+
+cd C:\Users\Usuario\OneDrive\Documentos\Grupo x\bin
+dispatcher.exe
+
+cd C:\Users\Usuario\OneDrive\Documentos\Grupo x\bin
+monitor.exe
+
+cd C:\Users\Usuario\OneDrive\Documentos\Grupo x\bin
+sensors.exe

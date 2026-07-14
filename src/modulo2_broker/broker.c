@@ -68,7 +68,6 @@ int main() {
         INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(SharedBufferContext), SHM_NAME
     );
     if (hMapFile == NULL) {
-        // Se corrige %d a %lu con casteo explicito
         printf("Error al crear File Mapping. Codigo: %lu\n", (unsigned long)GetLastError());
         return 1;
     }
@@ -76,7 +75,6 @@ int main() {
     // 2. Enlazar la vista de memoria al puntero de la estructura
     shared_ctx = (SharedBufferContext*)MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedBufferContext));
     if (shared_ctx == NULL) {
-        // Se corrige %d a %lu con casteo explicito
         printf("Error al mapear vista de memoria. Codigo: %lu\n", (unsigned long)GetLastError());
         CloseHandle(hMapFile);
         return 1;
@@ -85,10 +83,11 @@ int main() {
     // Inicializar el espacio de memoria compartida en cero
     ZeroMemory(shared_ctx, sizeof(SharedBufferContext));
 
-    // 3. Crear los objetos de sincronizacion global
-    hSemEmpty    = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, NULL);
-    hSemFull     = CreateSemaphore(NULL, 0, BUFFER_SIZE, NULL);
-    hMutexBuffer = CreateMutex(NULL, FALSE, NULL);
+    // 3. Crear los objetos de sincronizacion con nombres fijos compartidos
+    // Esto soluciona el problema de comunicacion con el Dispatcher
+    hSemEmpty    = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, TEXT("Local\\F1SemEmpty"));
+    hSemFull     = CreateSemaphore(NULL, 0, BUFFER_SIZE, TEXT("Local\\F1SemFull"));
+    hMutexBuffer = CreateMutex(NULL, FALSE, TEXT("Local\\F1MutexBuffer"));
     hEventShutdown = CreateEvent(NULL, TRUE, FALSE, EVENT_SHUTDOWN);
 
     printf("[BROKER] Infraestructura central creada. Esperando conexiones de sensores...\n");
@@ -107,7 +106,6 @@ int main() {
         );
 
         if (hPipe == INVALID_HANDLE_VALUE) {
-            // Se corrige %d a %lu con casteo explicito
             printf("Error al crear instancia de Named Pipe. Codigo: %lu\n", (unsigned long)GetLastError());
             continue;
         }

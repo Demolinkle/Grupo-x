@@ -25,9 +25,9 @@ int main() {
     // 3. Crear o abrir el evento de Windows para el protocolo de apagado global
     HANDLE hEventShutdown = CreateEvent(NULL, TRUE, FALSE, EVENT_SHUTDOWN);
 
-    printf("====================================================\n");
+    printf("\n");
     printf("   DASHBOARD DE TELEMETRIA FORMULA 1 - WIN32        \n");
-    printf("====================================================\n");
+    printf("\n");
     printf(" Monitoreando infraestructura en tiempo real...\n");
     printf(" Presione la tecla 'Q' para iniciar el apagado limpio global.\n\n");
 
@@ -41,9 +41,9 @@ int main() {
         LONG total_procesados = shared_ctx->total_processed_events;
         LONG ocupacion_actual = shared_ctx->current_buffer_occupancy;
 
-        printf("====================================================\n");
+        printf("\n");
         printf(" ESTADO DEL HARDWARE Y SOFTWARE\n");
-        printf("====================================================\n");
+        printf("\n");
         printf(" -> Sensores Conectados Concurrentes : %ld\n", sensores_activos);
         printf(" -> Total Eventos Persistidos en Log : %ld\n", total_procesados);
         printf(" -> Ocupacion del Buffer Circular    : %ld / %d\n", ocupacion_actual, BUFFER_SIZE);
@@ -58,7 +58,7 @@ int main() {
             }
         }
         printf("]\n");
-        printf("====================================================\n");
+        printf("\n");
 
         // Validar de forma asincrona si el usuario presiona la tecla 'Q' en la consola
         if (GetAsyncKeyState('Q') & 0x8000) {
@@ -74,7 +74,7 @@ int main() {
         Sleep(300);
     }
 
-    // --- PROTOCOLO DE CIERRE LIMPIO EXIGIDO ---
+    // PROTOCOLO DE CIERRE LIMPIO EXIGIDO
     UnmapViewOfFile(shared_ctx);
     CloseHandle(hMapFile);
     if (hEventShutdown != NULL) {

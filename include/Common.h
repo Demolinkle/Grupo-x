@@ -3,7 +3,6 @@
 
 #include <windows.h>
 
-// --- CONFIGURACION GLOBAL DEL SISTEMA ---
 #define BUFFER_SIZE    80    // Capacidad maxima del buffer circular
 #define MAX_WORKERS    4     // Numero de hilos trabajadores concurrentes
 
@@ -12,8 +11,6 @@
 #define SHM_NAME            TEXT("Local\\F1TelemetrySharedMemory")
 #define EVENT_SHUTDOWN      TEXT("Local\\F1EventShutdown")
 #define EVENT_DEBUG_TOGGLE  TEXT("Local\\F1EventDebugToggle")
-
-// --- ESTRUCTURAS DE DATOS ---
 
 // Estructura empaquetada que viaja por el Named Pipe y se aloja en Memoria Compartida
 typedef struct {
@@ -37,4 +34,4 @@ typedef struct {
     LONG current_buffer_occupancy;    // Tasa de ocupacion actual (0 a BUFFER_SIZE)
 } SharedBufferContext;
 
-#endif // COMMON_H
+#endif

@@ -1,7 +1,7 @@
 #include "Common.h"
 #include <stdio.h>
 
-// Variables globales para la gestion de recursos del sistema operativo
+// Recursos globales del sistema operativo para que todo el codigo los pueda usar
 HANDLE hMapFile = NULL;
 SharedBufferContext* shared_ctx = NULL;
 
@@ -12,49 +12,51 @@ HANDLE hMutexBuffer = NULL;
 HANDLE hEventShutdown = NULL;
 BOOL running = TRUE;
 
-// Hilo dedicado a escuchar y leer cada sensor independiente
+// Cada vez que se conecta un coche (sensor), este hilo se encarga de atenderlo a el solo
 DWORD WINAPI SensorHandlerThread(LPVOID lpParam) {
     HANDLE hPipe = (HANDLE)lpParam;
     TelemetryEvent event;
     DWORD bytesRead = 0;
 
-    // Registrar un nuevo sensor activo en la memoria compartida
+    // Sumamos 1 al contador de sensores activos en la memoria compartida de forma segura
     InterlockedIncrement(&shared_ctx->active_sensors);
     printf("[BROKER] Nuevo sensor conectado e hilo asignado.\n");
 
     while (running) {
-        // Lectura bloqueante desde el Named Pipe
+        // Nos quedamos esperando pasivamente a que el sensor envie datos por la tuberia
         BOOL success = ReadFile(hPipe, &event, sizeof(TelemetryEvent), &bytesRead, NULL);
         
-        // Si el cliente se desconecta o hay error, salimos del bucle
+        // Si el coche se desconecta o da error la lectura, rompemos el bucle para cerrar el hilo
         if (!success || bytesRead == 0) {
             printf("[BROKER] Sensor desconectado o canal cerrado.\n");
             break;
         }
 
-        // PROTOCOLO DE SINCRONIZACION COMPARTIDA (PRODUCTOR)
-        // Backpressure pasivo: Si el buffer se llena, el hilo se duerme aqui de forma nativa
+        // --- CONTROL DE INGESTA (PRODUCTOR) ---
+        // Si el buffer circular esta lleno (80/80), el hilo se duerme aqui automaticamente
         WaitForSingleObject(hSemEmpty, INFINITE);
         
-        // Seccion critica: Excluir a otros hilos del Broker para no pisar el indice 'head'
+        // Cerramos la puerta (Mutex) para que ningun otro hilo del Broker intente escribir al mismo tiempo
         WaitForSingleObject(hMutexBuffer, INFINITE);
 
-        // Depositar el evento en el buffer circular
+        // Guardamos los datos del carro en la posicion 'head' del buffer circular
         shared_ctx->data[shared_ctx->head] = event;
         shared_ctx->head = (shared_ctx->head + 1) % BUFFER_SIZE;
         
-        // Actualizar metricas para el Dashboard
+        // Sumamos 1 a la ocupacion actual para que el monitor lo dibuje en la barra visual
         InterlockedIncrement(&shared_ctx->current_buffer_occupancy);
 
-        // Liberar primitivas de control
+        // Abrimos la puerta (Mutex) para el siguiente hilo
         ReleaseMutex(hMutexBuffer);
-        ReleaseSemaphore(hSemFull, 1, NULL); // Notificar al Dispatcher que hay un nuevo item
+        
+        // Avisamos al Dispatcher con el semaforo de que ya pusimos un dato nuevo listo para guardar en log
+        ReleaseSemaphore(hSemFull, 1, NULL);
     }
 
-    // Decrementar el conteo de sensores al salir
+    // El sensor se fue, asi que restamos 1 al contador de conectados
     InterlockedDecrement(&shared_ctx->active_sensors);
     
-    // Cierre limpio del canal de este hilo
+    // Cerramos la tuberia de este cliente de forma limpia para no dejar basura en el OS
     DisconnectNamedPipe(hPipe);
     CloseHandle(hPipe);
     return 0;
@@ -63,7 +65,7 @@ DWORD WINAPI SensorHandlerThread(LPVOID lpParam) {
 int main() {
     printf("[BROKER] Iniciando Servidor de Telemetria...\n");
 
-    // 1. Crear el mapeo de memoria compartida (File Mapping)
+    // 1. Reservamos el espacio en la memoria RAM para compartir los datos con los otros programas
     hMapFile = CreateFileMapping(
         INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(SharedBufferContext), SHM_NAME
     );
@@ -72,7 +74,7 @@ int main() {
         return 1;
     }
 
-    // 2. Enlazar la vista de memoria al puntero de la estructura
+    // 2. Apuntamos nuestro puntero de estructura directamente a ese espacio de memoria creado
     shared_ctx = (SharedBufferContext*)MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedBufferContext));
     if (shared_ctx == NULL) {
         printf("Error al mapear vista de memoria. Codigo: %lu\n", (unsigned long)GetLastError());
@@ -80,11 +82,10 @@ int main() {
         return 1;
     }
 
-    // Inicializar el espacio de memoria compartida en cero
+    // Limpiamos la memoria compartida poniendola toda en cero antes de empezar
     ZeroMemory(shared_ctx, sizeof(SharedBufferContext));
 
-    // 3. Crear los objetos de sincronizacion con nombres fijos compartidos
-    // Esto soluciona el problema de comunicacion con el Dispatcher
+    // 3. Creamos los semaforos y mutex con nombres fijos para que el Dispatcher y Monitor puedan encontrarlos
     hSemEmpty    = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, TEXT("Local\\F1SemEmpty"));
     hSemFull     = CreateSemaphore(NULL, 0, BUFFER_SIZE, TEXT("Local\\F1SemFull"));
     hMutexBuffer = CreateMutex(NULL, FALSE, TEXT("Local\\F1MutexBuffer"));
@@ -92,13 +93,13 @@ int main() {
 
     printf("[BROKER] Infraestructura central creada. Esperando conexiones de sensores...\n");
 
-    // 4. Bucle principal de escucha de Named Pipes
+    // 4. Bucle infinito para recibir a todos los coches que se quieran conectar
     while (running) {
-        // Crear una instancia del pipe para el proximo cliente
+        // Preparamos una tuberia (Named Pipe) exclusiva en modo de solo lectura de datos
         HANDLE hPipe = CreateNamedPipe(
             PIPE_NAME,
-            PIPE_ACCESS_INBOUND, // El Broker solo lee datos del sensor
-            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, // Modo bloqueante pasivo
+            PIPE_ACCESS_INBOUND, 
+            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 
             PIPE_UNLIMITED_INSTANCES,
             sizeof(TelemetryEvent),
             sizeof(TelemetryEvent),
@@ -110,24 +111,26 @@ int main() {
             continue;
         }
 
-        // Esperar a que un proceso sensor ejecute su conexion
+        // El programa se queda detenido aqui esperando de forma pasiva a que un sensor abra el canal
         BOOL connected = ConnectNamedPipe(hPipe, NULL) ? TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
 
         if (connected) {
-            // Delegar la lectura a un hilo receptor dedicado (Multihilo dinamico)
+            // El coche se conecto con exito. Creamos un hilo exclusivo para el y seguimos escuchando el bucle
             HANDLE hThread = CreateThread(NULL, 0, SensorHandlerThread, (LPVOID)hPipe, 0, NULL);
             if (hThread != NULL) {
-                CloseHandle(hThread); // Cerramos el handle del hilo porque no necesitamos rastrearlo aqui
+                // Cerramos el handle del hilo porque correra libre y no necesitamos controlarlo desde el main
+                CloseHandle(hThread); 
             } else {
                 CloseHandle(hPipe);
             }
         } else {
-            // Si la conexion fallo, cerramos el handle inmediatamente para evitar fugas
+            // Si la conexion dio error, cerramos el handle de la tuberia para evitar fugas de recursos
             CloseHandle(hPipe);
         }
     }
 
-    // PROTOCOLO DE CIERRE LIMPIO DE HANDLES
+    // --- PROTOCOLO DE CIERRE LIMPIO EXIGIDO POR LA CATEDRA ---
+    // Nos desconectamos de la memoria y destruimos todos los recursos para no dejar colgado el sistema operativo
     UnmapViewOfFile(shared_ctx);
     CloseHandle(hMapFile);
     CloseHandle(hSemEmpty);

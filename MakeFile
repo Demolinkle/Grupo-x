@@ -3,7 +3,8 @@ CFLAGS = -O2 -Iinclude -Wall
 BIN_DIR = bin
 SRC_DIR = src
 
-all: setup $(BIN_DIR)/sensors.exe $(BIN_DIR)/broker.exe $(BIN_DIR)/dispatcher.exe $(BIN_DIR)/monitor.exe
+# Agregamos $(BIN_DIR)/reader.exe a la regla 'all'
+all: setup $(BIN_DIR)/sensors.exe $(BIN_DIR)/broker.exe $(BIN_DIR)/dispatcher.exe $(BIN_DIR)/monitor.exe $(BIN_DIR)/reader.exe
 
 setup:
 	@if not exist $(BIN_DIR) mkdir $(BIN_DIR)
@@ -19,6 +20,10 @@ $(BIN_DIR)/dispatcher.exe: $(SRC_DIR)/modulo3_dispatcher/dispatcher.c
 
 $(BIN_DIR)/monitor.exe: $(SRC_DIR)/modulo4_monitor/monitor.c
 	$(CC) $(CFLAGS) $(SRC_DIR)/modulo4_monitor/monitor.c -o $@
+
+# --- NUEVO PROGRAMA LECTOR DE LOG ---
+$(BIN_DIR)/reader.exe: $(SRC_DIR)/modulo5_reader/reader.c
+	$(CC) $(CFLAGS) $(SRC_DIR)/modulo5_reader/reader.c -o $@
 
 clean:
 	@if exist $(BIN_DIR) rmdir /s /q $(BIN_DIR)

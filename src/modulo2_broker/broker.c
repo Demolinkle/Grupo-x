@@ -32,7 +32,7 @@ DWORD WINAPI SensorHandlerThread(LPVOID lpParam) {
             break;
         }
 
-        // --- CONTROL DE INGESTA (PRODUCTOR) ---
+        // CONTROL DE INGESTA (PRODUCTOR)
         // Si el buffer circular esta lleno (80/80), el hilo se duerme aqui automaticamente
         WaitForSingleObject(hSemEmpty, INFINITE);
         
